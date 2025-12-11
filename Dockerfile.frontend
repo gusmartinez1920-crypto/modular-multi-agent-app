@@ -1,38 +1,53 @@
-# ETAPA 1: BUILD (Compilação da Aplicação)
+# --- Estágio de Build (Builder Stage) ---
+# Usamos a imagem Node padrão (baseada em Debian) para melhor compatibilidade com binários do SWC/Next.js
+FROM node:18 AS builder 
 
-# Usamos uma imagem Node.js completa para instalar dependências e compilar
-FROM node:18-alpine AS builder
+# Define o diretório de trabalho dentro do contêiner
+WORKDIR /app
 
-WORKDIR /app/frontend
+# 1. Instalar Ferramentas de Build do Sistema (Debian)
+# Necessário para compilar corretamente o @next/swc (Rust) e outras dependências nativas.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    python3-dev \
+    # Limpa o cache para reduzir o tamanho da imagem
+    && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copia package.json e package-lock.json (otimiza o cache do Docker)
-COPY frontend/package*.json ./
-
-# Instala as dependências Node
+# 2. Instalação de Dependências
+# Copia e instala as dependências definidas no package.json
+COPY package*.json ./
 RUN npm install
-
-# Copia o código fonte
-COPY frontend/ .
-
-# Constrói o Next.js para produção
-# Este comando gera os arquivos estáticos e a lógica compilada
-RUN npm run build
+RUN npm cache clean --force
 
 
-# ETAPA 2: PRODUCTION (Ambiente de Execução)
+# 4. Construção da Aplicação
+# Copia o restante do código-fonte
+COPY . .
 
-# Usamos uma imagem Node.js slim (menor) para rodar o app compilado
-FROM node:18-alpine
+# Comando de Build do Next.js
+# Isso gera a pasta otimizada '.next'
+RUN NEXT_TELEMETRY_DISABLED=1 NEXT_SWC_IGNORE_DYNAMIC=1 npm run build
 
-WORKDIR /app/frontend
+# --- Estágio de Produção (Runner Stage) ---
+# Usa a mesma base para garantir a compatibilidade de runtime
+FROM node:18 AS runner
 
-# Copia apenas os arquivos necessários para rodar o Next.js em produção
-COPY --from=builder /app/frontend/.next ./.next
-COPY --from=builder /app/frontend/node_modules ./node_modules
-COPY --from=builder /app/frontend/package.json ./package.json
+# Define o ambiente de produção
+ENV NODE_ENV production
 
-# Expor a porta que o Next.js usará (conforme definido no docker-compose)
+# Define o diretório de trabalho
+WORKDIR /app
+
+# Copia os arquivos essenciais do estágio de build
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next ./.next
+
+# Expõe a porta do Frontend (padrão Next.js)
 EXPOSE 3000
 
-# Comando para iniciar o servidor Next.js
+# Comando para iniciar o servidor Next.js em produção
 CMD ["npm", "start"]

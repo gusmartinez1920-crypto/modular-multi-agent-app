@@ -1,5 +1,17 @@
-# Conteúdo sugerido para Dockerfile.backend (na raiz)
+# Arquivo: Dockerfile.backend
 FROM python:3.11-slim
+
+# PASSO CRÍTICO: Instalar ferramentas de build do sistema (gcc, headers)
+# Isso permite que pacotes Python com código C/C++ sejam compilados corretamente.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    gcc \
+    python3-dev \
+    # Adicione libpq-dev se você usar PostgreSQL
+    # Adicione libssl-dev se usar pacotes de rede/ssl
+    libffi-dev \
+    && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

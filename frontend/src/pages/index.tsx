@@ -1,98 +1,203 @@
-// Arquivo: frontend/src/pages/index.tsx
-import React, { useState, FormEvent } from 'react';
+import { useState, useCallback, ChangeEvent } from 'react';
 import axios from 'axios';
+import Head from 'next/head';
 
-// Variável de ambiente configurada no docker-compose.yml
-// No ambiente local de desenvolvimento, ela será http://localhost:8000
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// URL base do seu API Gateway (FastAPI)
+// No Docker, o frontend acessa a API pelo nome do serviço: 'api-gateway'
+// Se estiver rodando localmente (sem Docker), use 'localhost:8000'
+// No Docker:
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://api-gateway:8000';
+// Para testes locais sem Docker, você usaria: 'http://localhost:8000'
 
-const Home: React.FC = () => {
+// Interface para o objeto de resposta
+interface AgentResponse {
+  task_id: string;
+  status: 'PENDING' | 'SUCCESS' | 'FAILED';
+  result?: string;
+  error?: string;
+}
+
+const AgentApp: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
-  const [userRequest, setUserRequest] = useState<string>('');
-  const [status, setStatus] = useState<string>('Pronto para Enviar');
-  const [taskId, setTaskId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [response, setResponse] = useState<AgentResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Manipulador de upload de arquivo
+  const handleFileChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setFile(e.target.files[0]);
     }
-  };
+  }, []);
 
-  const handleSubmit = async (e: FormEvent) => {
+  // Manipulador de submissão do formulário
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!file || !userRequest) {
-      setStatus('Erro: Por favor, selecione um arquivo e digite uma requisição.');
+    if (!file || !query) {
+      setError("Por favor, selecione um arquivo e insira uma requisição.");
       return;
     }
 
-    setStatus('Enviando tarefa...');
-    setTaskId(null);
+    setLoading(true);
+    setError(null);
+    setResponse(null);
 
     const formData = new FormData();
-    formData.append('pdf_file', file);
-    formData.append('user_request', userRequest);
+    formData.append('file', file);
+    formData.append('query', query);
 
     try {
-      // POST para o endpoint que criamos no API Gateway (FastAPI)
-      const response = await axios.post(`${API_URL}/api/v1/task/submit`, formData, {
+      // 1. Envia o arquivo e a requisição para o endpoint de processamento da API
+      const res = await axios.post<AgentResponse>(`${API_URL}/api/process-document`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
 
-      const data = response.data;
-      setTaskId(data.task_id);
-      setStatus(`Tarefa enviada! ID: ${data.task_id}. Status: ${data.status}`);
-      
-      // TODO: Implementar pooling (consultas periódicas) para verificar o resultado aqui!
+      // 2. Inicia o monitoramento do status da tarefa
+      setResponse(res.data);
+      if (res.data.task_id) {
+        pollStatus(res.data.task_id);
+      }
 
-    } catch (error) {
-      console.error('Erro ao submeter a tarefa:', error);
-      setStatus('Erro ao conectar ou submeter a tarefa ao servidor API.');
+    } catch (err) {
+      console.error(err);
+      setError('Erro ao enviar documento. Verifique se o API Gateway está ativo.');
+      setLoading(false);
     }
   };
 
-  return (
-    <div style={{ padding: '20px', maxWidth: '800px', margin: 'auto' }}>
-      <h1>🤖 App de Multiagentes Modular</h1>
-      <p>Envie um documento PDF e sua requisição para iniciar o workflow de IA.</p>
+  // Função para monitorar o status da tarefa no backend
+  const pollStatus = useCallback(async (taskId: string) => {
+    let status = 'PENDING';
+    
+    while (status === 'PENDING') {
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Espera 2 segundos
       
-      <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '15px', border: '1px solid #ccc', padding: '20px', borderRadius: '8px' }}>
-        
-        <label>
-          <strong>1. Arquivo PDF:</strong>
-          <input 
-            type="file" 
-            accept=".pdf" 
-            onChange={handleFileChange} 
-            style={{ display: 'block', marginTop: '5px' }}
-          />
-        </label>
+      try {
+        const res = await axios.get<AgentResponse>(`${API_URL}/api/task-status/${taskId}`);
+        status = res.data.status;
+        setResponse(res.data);
 
-        <label>
-          <strong>2. Sua Requisição (Ex: "Resuma os riscos financeiros no último ano"):</strong>
-          <textarea
-            value={userRequest}
-            onChange={(e) => setUserRequest(e.target.value)}
-            rows={4}
-            placeholder="Digite a tarefa para os agentes..."
-            style={{ width: '100%', padding: '10px', boxSizing: 'border-box', marginTop: '5px' }}
-          />
-        </label>
+        if (status === 'SUCCESS' || status === 'FAILED') {
+          setLoading(false);
+          break;
+        }
 
-        <button type="submit" disabled={!file || !userRequest} style={{ padding: '10px', cursor: 'pointer', backgroundColor: '#0070f3', color: 'white', border: 'none', borderRadius: '4px' }}>
-          Executar Workflow de Agentes
-        </button>
-      </form>
+      } catch (err) {
+        console.error("Erro ao monitorar status:", err);
+        setError('Falha ao monitorar a tarefa no backend.');
+        setLoading(false);
+        break;
+      }
+    }
+  }, []);
 
-      <div style={{ marginTop: '20px', padding: '15px', border: '1px solid #ddd', backgroundColor: '#f9f9f9', borderRadius: '4px' }}>
-        <h3>Status do Processamento</h3>
-        <p><strong>Status Atual:</strong> {status}</p>
-        {taskId && <p><strong>Último ID de Tarefa:</strong> <code>{taskId}</code></p>}
-      </div>
+
+  // --- Renderização da Interface ---
+  return (
+    <div className="min-h-screen bg-gray-100 p-8">
+      <Head>
+        <title>MMAS - Análise de Documentos com Gemini</title>
+      </Head>
+      <main className="max-w-4xl mx-auto bg-white p-10 rounded-xl shadow-2xl">
+        <h1 className="text-3xl font-bold text-center text-blue-700 mb-8">
+          🤖 Modular Multi-Agent System (MMAS)
+        </h1>
+        <p className="text-center text-gray-600 mb-8">
+          Envie um PDF e uma requisição de análise. O sistema de Agentes (RAG + Gemini) processará o documento.
+        </p>
+
+        {/* Formulário de Submissão */}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              1. Documento (PDF):
+            </label>
+            <input
+              type="file"
+              accept=".pdf"
+              onChange={handleFileChange}
+              className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+              disabled={loading}
+            />
+            {file && <p className="mt-2 text-sm text-green-600">Arquivo selecionado: {file.name}</p>}
+          </div>
+
+          <div>
+            <label htmlFor="query" className="block text-sm font-medium text-gray-700 mb-2">
+              2. Requisição/Pergunta:
+            </label>
+            <textarea
+              id="query"
+              rows={3}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Ex: Quais são os principais desafios do ano fiscal de 2025?"
+              className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-blue-500 focus:border-blue-500"
+              disabled={loading}
+            />
+          </div>
+
+          <button
+            type="submit"
+            className={`w-full py-3 px-4 rounded-lg text-white font-semibold transition duration-150 ${
+              loading
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700'
+            }`}
+            disabled={loading}
+          >
+            {loading ? 'Executando Workflow de Agentes...' : 'Executar Análise de Documento'}
+          </button>
+        </form>
+
+        {/* Área de Resultados */}
+        <div className="mt-10 pt-6 border-t border-gray-300">
+          <h2 className="text-2xl font-semibold text-gray-800 mb-4">Resultados da Análise</h2>
+
+          {error && (
+            <div className="p-4 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-lg">
+              <p className="font-bold">Erro:</p>
+              <p>{error}</p>
+            </div>
+          )}
+
+          {response && (
+            <div className="space-y-4">
+              <p className="font-medium">ID da Tarefa: <span className="font-normal text-blue-600">{response.task_id}</span></p>
+              <p className="font-medium">
+                Status:
+                <span className={`ml-2 px-3 py-1 rounded-full text-sm font-semibold ${
+                  response.status === 'SUCCESS' ? 'bg-green-100 text-green-800' :
+                  response.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-red-100 text-red-800'
+                }`}>
+                  {response.status}
+                </span>
+              </p>
+
+              {response.result && (
+                <div className="bg-gray-50 p-4 rounded-lg whitespace-pre-wrap shadow-inner">
+                  <h3 className="font-bold mb-2">Relatório do Agente:</h3>
+                  {/* Assumindo que a resposta pode ser Markdown */}
+                  <pre className="text-sm font-mono">{response.result}</pre>
+                </div>
+              )}
+               {response.error && (
+                <div className="p-4 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-lg">
+                  <p className="font-bold">Erro do Backend:</p>
+                  <p>{response.error}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 };
 
-export default Home;
+export default AgentApp;
