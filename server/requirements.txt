@@ -1,0 +1,5 @@
+# Conteúdo sugerido para server/requirements.txt
+fastapi
+uvicorn[standard]
+python-dotenv
+# Se usar um Message Broker (ex: Redis/Celery), adicione aqui

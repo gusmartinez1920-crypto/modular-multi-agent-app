@@ -1,0 +1,38 @@
+# ETAPA 1: BUILD (Compilação da Aplicação)
+
+# Usamos uma imagem Node.js completa para instalar dependências e compilar
+FROM node:18-alpine AS builder
+
+WORKDIR /app/frontend
+
+# Copia package.json e package-lock.json (otimiza o cache do Docker)
+COPY frontend/package*.json ./
+
+# Instala as dependências Node
+RUN npm install
+
+# Copia o código fonte
+COPY frontend/ .
+
+# Constrói o Next.js para produção
+# Este comando gera os arquivos estáticos e a lógica compilada
+RUN npm run build
+
+
+# ETAPA 2: PRODUCTION (Ambiente de Execução)
+
+# Usamos uma imagem Node.js slim (menor) para rodar o app compilado
+FROM node:18-alpine
+
+WORKDIR /app/frontend
+
+# Copia apenas os arquivos necessários para rodar o Next.js em produção
+COPY --from=builder /app/frontend/.next ./.next
+COPY --from=builder /app/frontend/node_modules ./node_modules
+COPY --from=builder /app/frontend/package.json ./package.json
+
+# Expor a porta que o Next.js usará (conforme definido no docker-compose)
+EXPOSE 3000
+
+# Comando para iniciar o servidor Next.js
+CMD ["npm", "start"]

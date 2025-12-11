@@ -1,0 +1,14 @@
+# Conteúdo sugerido para Dockerfile.backend (na raiz)
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Instala dependências do Python
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copia todo o código da raiz (inclui agents/, tools/, workflows/, etc.)
+COPY . .
+
+# Comando de inicialização
+CMD ["python", "main.py"]

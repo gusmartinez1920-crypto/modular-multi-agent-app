@@ -1,0 +1,20 @@
+# Arquivo: .gitignore
+
+# Ambientes Virtuais Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.log
+
+# Arquivo de Variáveis de Ambiente (CRÍTICO: Não deve conter chaves secretas)
+.env
+
+# Dependências do Node (Frontend) - Contém o arquivo grande
+frontend/node_modules/
+frontend/.next/
+.DS_Store
+
+# Dados gerados pelo Docker
+data/vector_store/
+data/logs/
