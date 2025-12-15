@@ -14,9 +14,9 @@ class MemoryAgent:
     Responsável por armazenar e recuperar chunks de texto usando o VectorDBTool.
     """
 
-    def __init__(self, collection_name: str = "document_collection"):
+    def __init__(self):
         # O MemoryAgent deve ter uma instância da ferramenta de DB Vetorial
-        self.db_tool = VectorDBTool(collection_name=collection_name)
+        self.db_tool = VectorDBTool()
         logger.info("MemoryAgent inicializado com VectorDBTool.")
 
     def execute(self, input_data: Dict[str, Any], user_request: str, command: str, task_id: str) -> Dict[str, Any]:

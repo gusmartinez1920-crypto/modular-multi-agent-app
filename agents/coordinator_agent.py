@@ -10,7 +10,7 @@ from typing import Dict, Any
 from .extraction_agent import ExtractionAgent
 from .analysis_agent import AnalysisAgent
 from .delivery_agent import DeliveryAgent
-# from .memory_agent import MemoryAgent # (Opcional, se o workflow exigir)
+from .memory_agent import MemoryAgent # (Opcional, se o workflow exigir)
 
 
 # --- 1. Configuração do Logging (Carregamento) ---
@@ -24,7 +24,7 @@ def initialize_logging(config_path='logging_config.yaml'):
         
     try:
         with open(config_path, 'rt') as f:
-            config = yaml.safe_load(f.read())
+            config = yaml.safe_load(f)
             logging.config.dictConfig(config)
     except Exception as e:
         print(f"ERRO CRÍTICO: Falha ao carregar logging config: {e}")
@@ -56,7 +56,7 @@ def get_agent_instance(agent_name: str):
         "AnalysisAgent": AnalysisAgent,
         "DeliveryAgent": DeliveryAgent,
         # Adicione outros agentes aqui:
-        # "MemoryAgent": MemoryAgent,
+        "MemoryAgent": MemoryAgent,
     }
     AgentClass = mapping.get(agent_name)
     if AgentClass:

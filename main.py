@@ -3,18 +3,18 @@ import logging.config
 import yaml
 import os
 import time
+import json
 from dotenv import load_dotenv
 
 # Importa a função principal do Coordenador
 from agents.coordinator_agent import process_task_from_api 
 
 # --- CONFIGURAÇÃO ---
+QUEUE_DIR = 'data/queue'
 
-# 1. Função de Inicialização de Logs (Recomendado ser no main.py)
+# 1. Função de Inicialização de Logs
 def initialize_logging(config_path='logging_config.yaml'):
     """Carrega a configuração de logging e garante o diretório de logs."""
-    
-    # Garante que a pasta 'data/logs' exista no volume compartilhado
     log_dir = 'data/logs'
     os.makedirs(log_dir, exist_ok=True)
     
@@ -31,64 +31,59 @@ def initialize_logging(config_path='logging_config.yaml'):
 
 # 2. Inicialização do Motor do Backend
 def start_agent_backend():
-    # Carregar variáveis de ambiente (chaves de API, etc.)
+    # Carregar variáveis de ambiente
     load_dotenv()
     
     # Inicializar o sistema de logging
     initialize_logging()
     
-    # Obter o logger raiz para mensagens de status
+    # Garantir que o diretório da fila exista
+    os.makedirs(QUEUE_DIR, exist_ok=True)
+    
     root_logger = logging.getLogger()
     root_logger.info("Sistema de Multiagentes Inicializado com Sucesso.")
-    root_logger.info("Aguardando tarefas do API Gateway...")
+    root_logger.info("Aguardando tarefas no diretório: %s", QUEUE_DIR)
 
-    # --- SIMULAÇÃO DA ESCUTA DE TAREFAS ---
+    print(f"\n--- Modo de Escuta Ativado em '{QUEUE_DIR}' (Ctrl+C para sair) ---")
     
-    # Em um sistema real (e escalável), este loop faria o seguinte:
-    # 1. Conectar a um Message Broker (RabbitMQ, Redis, Kafka)
-    # 2. Entrar em um loop infinito, escutando por novas mensagens na fila.
-    
-    print("\n--- Modo de Escuta Ativado (Ctrl+C para sair) ---")
-    
-    # EXEMPLO DE TESTE E ESCUTA SÍNCRONA:
-    # Para demonstração, vamos apenas simular que uma tarefa foi recebida:
-    
-    # Estrutura do payload recebido do API Gateway
-    mock_payload = {
-        "task_id": "T-SIMULACAO-001",
-        "user_request": "Analise o relatório financeiro do 3º trimestre e summarize os riscos principais.",
-        # Este path existe no volume compartilhado (./data)
-        "file_path": "data/input_pdfs/relatorio_mock.pdf", 
-        "workflow_hint": "finance_analysis"
-    }
-
     try:
-        # AQUI O MOTOR CHAMA O COORDENADOR:
-        # Nota: O 'task_id' precisa ser injetado para fins de logging e rastreio.
-        # Passamos o payload diretamente para a função do coordenador
-        
-        # Simulação de um loop de escuta infinito
         while True:
-            # Em produção, este bloco seria substituído pela leitura da fila
-            if time.time() % 10 < 1: # Tenta processar a cada 10 segundos para simular
-                root_logger.info("Simulando recepção de nova tarefa...")
-                
-                # Executa o processo multiagentes
-                result = process_task_from_api(mock_payload)
-                
-                # Reporta o resultado (em produção, enviaria para o DB de Status)
-                root_logger.info("Resultado da Tarefa %s: Status: %s", 
-                                 mock_payload['task_id'], result['status'])
-                
-                # Evita sobrecarga de logs
-                time.sleep(5) 
+            # Lista os arquivos de tarefa no diretório da fila
+            tasks = [f for f in os.listdir(QUEUE_DIR) if f.endswith('.json')]
             
-            time.sleep(1) # Espera 1 segundo
+            if not tasks:
+                time.sleep(2) # Espera se não houver tarefas
+                continue
+
+            for task_file in tasks:
+                file_path = os.path.join(QUEUE_DIR, task_file)
+                
+                try:
+                    with open(file_path, 'r') as f:
+                        payload = json.load(f)
+                    
+                    root_logger.info("Nova tarefa recebida: %s", payload.get("task_id", "ID não encontrado"))
+                    
+                    # Executa o processo multiagentes
+                    result = process_task_from_api(payload)
+                    
+                    # Reporta o resultado
+                    root_logger.info("Resultado da Tarefa %s: Status: %s", 
+                                     payload.get('task_id', 'N/A'), result.get('status', 'desconhecido'))
+
+                except json.JSONDecodeError as e:
+                    root_logger.error("Erro ao decodificar JSON da tarefa %s: %s", task_file, e)
+                except Exception as e:
+                    root_logger.error("Erro ao processar a tarefa %s: %s", task_file, e)
+                finally:
+                    # Remove o arquivo da tarefa após o processamento (bem-sucedido ou falho)
+                    os.remove(file_path)
+                    root_logger.info("Tarefa %s removida da fila.", task_file)
 
     except KeyboardInterrupt:
         root_logger.warning("Motor de Agentes Desligado pelo Usuário.")
     except Exception as e:
-        root_logger.error("Erro fatal no loop principal: %s", str(e))
+        root_logger.error("Erro fatal no loop principal: %s", str(e), exc_info=True)
     finally:
         root_logger.info("Shutdown completo.")
 

@@ -1,0 +1,9 @@
+tasks_sequence:
+  - agent: ExtractionAgent
+    command: parse_and_chunk_pdf
+  - agent: MemoryAgent
+    command: search_knowledge_base
+  - agent: AnalysisAgent
+    command: generate_answer_from_context
+  - agent: DeliveryAgent
+    command: format_final_report

@@ -19,8 +19,12 @@ A solução é dividida em três contêineres Docker principais, gerenciados pel
 | Serviço | Tecnologia | Função Principal | Porta Exposta |
 | :--- | :--- | :--- | :--- |
 | **Frontend** | Next.js (React) | Interface de upload e visualização de resultados. | `3000` |
-| **API Gateway** | FastAPI | Recebimento de requisições HTTP e roteamento para o motor de agentes. | `8000` |
+| **API Gateway** | FastAPI | Recebimento de requisições HTTP e enfileiramento de tarefas. | `8000` |
 | **Agent Backend** | Python (Agentes) | Orquestração do Workflow e execução da lógica de IA/RAG. | *(Nenhuma)* |
+
+### 🔄 Processamento de Tarefas via Fila
+
+As tarefas não são processadas em tempo real. O `API Gateway` recebe uma requisição, cria um arquivo JSON com os detalhes da tarefa e o deposita no diretório `data/queue`. O `Agent Backend` monitora este diretório, processa as tarefas em segundo plano e, ao final, remove o arquivo da fila.
 
 ### 🔍 O Ciclo de Vida do Agente
 
@@ -28,7 +32,7 @@ O coração do sistema é o `Agent Backend`, que executa o fluxo definido no arq
 
 1.  **`CoordinatorAgent`**: Carrega o workflow (`default_pdf_analysis.yaml`) e dita a ordem de execução.
 2.  **`ExtractionAgent`**: Utiliza a `PDFReaderTool` para transformar o PDF em *chunks* de texto.
-3.  **`MemoryAgent`**: Gerencia a base de conhecimento. Ele armazena os novos *chunks* no Vector DB e executa a busca RAG para recuperar o conhecimento relevante de documentos passados/outros.
+3.  **`MemoryAgent`**: Gerencia a base de conhecimento. Ele armazena os novos *chunks* no Vector DB (atualmente um ChromaDB local) e executa a busca RAG para recuperar o conhecimento relevante.
 4.  **`AnalysisAgent` (Gemini)**: Recebe o prompt do usuário + todos os *chunks* de contexto. Ele utiliza a `LLMTool` (SDK do Gemini) para raciocinar e gerar a resposta final.
 5.  **`DeliveryAgent`**: Formata a resposta final em um padrão JSON limpo para o sistema externo.
 

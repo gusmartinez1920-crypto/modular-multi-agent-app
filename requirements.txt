@@ -1,8 +1,11 @@
 # Conteúdo sugerido para requirements.txt (na raiz do projeto)
 pyyaml
-crewai
-pydantic==2.5.3
-openai
+pydantic==2.12.5
 python-dotenv
 pypdf # Para extração de PDF
-chromadb # Exemplo de Vector DB para o Memory Agent
+google-generativeai # Para o Analysis Agent
+fastapi
+uvicorn
+faiss-cpu
+sentence-transformers
+chromadb
