@@ -1,40 +1,34 @@
 # 🧠 Sistema Modular de Multiagentes (MMAS) para Análise de Documentos
 
-## 🎯 Visão Geral do Projeto
+## O que este projeto faz?
 
-Este projeto demonstra uma **Arquitetura Orientada a Agentes (AOA)** utilizando o padrão **RAG (Retrieval Augmented Generation)** para processar, analisar e responder a consultas sobre documentos não estruturados (PDFs).
+Imagine que você precisa extrair informações importantes de um documento PDF, como um relatório financeiro ou um contrato. Em vez de ler tudo manualmente, você poderia simplesmente "perguntar" ao documento o que você precisa saber. Este projeto é um sistema que faz exatamente isso, utilizando uma equipe de "agentes" de inteligência artificial que trabalham juntos para analisar o documento e encontrar a resposta para você.
 
-O principal objetivo é substituir um processamento sequencial simples por uma orquestração modular, onde cada etapa (extração, memória, análise) é tratada por um **Agente de IA especializado**.
+### Como funciona? Uma analogia com uma equipe de especialistas
 
-**Recursos Chave:**
-* **Modularidade:** Separação de responsabilidades em microsserviços (Frontend, API, Backend de Agentes).
-* **Rastreabilidade:** Uso de um `CoordinatorAgent` e logs detalhados (via `task_id`) para monitorar o fluxo de trabalho.
-* **RAG Integrado:** Utilização de um Vector DB (ChromaDB) para enriquecer o contexto do LLM.
-* **Tecnologia:** Backend Python (FastAPI, Agentes), Frontend (Next.js) e LLM (Google Gemini).
+Pense no sistema como uma equipe de especialistas em um escritório:
 
-## 🏛️ Arquitetura do Sistema
+1.  **O Recepcionista (API Gateway):** Primeiro, você entrega seu documento (o arquivo PDF) e sua pergunta para o "recepcionista". Ele anota seu pedido em um formulário (um arquivo de tarefa) e o coloca em uma bandeja de "trabalhos a fazer" (uma fila de tarefas).
 
-A solução é dividida em três contêineres Docker principais, gerenciados pelo `docker-compose`. 
+2.  **O Coordenador de Projetos (CoordinatorAgent):** O "coordenador" pega o primeiro formulário da bandeja. Ele lê o pedido e define um plano de ação, determinando qual especialista deve trabalhar em cada etapa e em que ordem.
 
-| Serviço | Tecnologia | Função Principal | Porta Exposta |
-| :--- | :--- | :--- | :--- |
-| **Frontend** | Next.js (React) | Interface de upload e visualização de resultados. | `3000` |
-| **API Gateway** | FastAPI | Recebimento de requisições HTTP e enfileiramento de tarefas. | `8000` |
-| **Agent Backend** | Python (Agentes) | Orquestração do Workflow e execução da lógica de IA/RAG. | *(Nenhuma)* |
+3.  **O Estagiário de Digitalização (ExtractionAgent):** O primeiro especialista a agir é o "estagiário de digitalização". Ele pega o documento PDF e o "digitaliza", quebrando o texto em pedaços menores e mais fáceis de gerenciar (chamados de *chunks*).
 
-### 🔄 Processamento de Tarefas via Fila
+4.  **O Arquivista (MemoryAgent):** Em seguida, o "arquivista" entra em cena. Ele tem duas funções importantes:
+    *   **Memorização:** Ele pega os pedaços de texto do novo documento e os armazena em um "arquivo inteligente" (um banco de dados vetorial como o ChromaDB). Isso permite que o sistema se "lembre" do conteúdo deste documento no futuro.
+    *   **Pesquisa:** Ele usa sua pergunta para pesquisar no arquivo inteligente por informações relevantes, não apenas do documento atual, mas de todos os documentos que ele já arquivou. Isso é o que chamamos de **RAG (Retrieval Augmented Generation)**, ou Geração Aumentada por Recuperação, que enriquece a análise com conhecimento prévio.
 
-As tarefas não são processadas em tempo real. O `API Gateway` recebe uma requisição, cria um arquivo JSON com os detalhes da tarefa e o deposita no diretório `data/queue`. O `Agent Backend` monitora este diretório, processa as tarefas em segundo plano e, ao final, remove o arquivo da fila.
+5.  **O Analista Principal (AnalysisAgent):** Com os pedaços do documento atual e as informações relevantes do arquivo em mãos, o "analista principal" (que usa um modelo de linguagem avançado como o Gemini do Google) faz o trabalho pesado de raciocínio. Ele lê todo o contexto e formula uma resposta coesa e precisa para a sua pergunta original.
 
-### 🔍 O Ciclo de Vida do Agente
+6.  **O Editor Final (DeliveryAgent):** Por fim, o "editor" pega a resposta do analista e a formata em um relatório limpo e padronizado, pronto para ser entregue de volta a você.
 
-O coração do sistema é o `Agent Backend`, que executa o fluxo definido no arquivo YAML:
+### Por que essa abordagem é poderosa?
 
-1.  **`CoordinatorAgent`**: Carrega o workflow (`default_pdf_analysis.yaml`) e dita a ordem de execução.
-2.  **`ExtractionAgent`**: Utiliza a `PDFReaderTool` para transformar o PDF em *chunks* de texto.
-3.  **`MemoryAgent`**: Gerencia a base de conhecimento. Ele armazena os novos *chunks* no Vector DB (atualmente um ChromaDB local) e executa a busca RAG para recuperar o conhecimento relevante.
-4.  **`AnalysisAgent` (Gemini)**: Recebe o prompt do usuário + todos os *chunks* de contexto. Ele utiliza a `LLMTool` (SDK do Gemini) para raciocinar e gerar a resposta final.
-5.  **`DeliveryAgent`**: Formata a resposta final em um padrão JSON limpo para o sistema externo.
+*   **Modularidade:** Cada agente é um especialista em sua tarefa. Se quisermos melhorar a forma como os PDFs são lidos, podemos simplesmente treinar ou substituir o "estagiário de digitalização" sem afetar o resto da equipe.
+*   **Escalabilidade:** Como as tarefas são colocadas em uma fila, o sistema pode lidar com muitos pedidos. Se a fila ficar muito longa, podemos "contratar" mais equipes de agentes para trabalhar em paralelo.
+*   **Inteligência Aumentada (RAG):** O sistema não se limita ao documento que você acabou de enviar. Ele aprende com cada documento que processa, tornando-se mais inteligente e capaz de fornecer respostas mais ricas e contextuais ao longo do tempo.
+
+Este projeto é, portanto, um exemplo prático de como a arquitetura de múltiplos agentes pode ser usada para criar sistemas de IA sofisticados, transparentes e fáceis de manter.
 
 ## 🛠️ Guia de Instalação e Execução
 
