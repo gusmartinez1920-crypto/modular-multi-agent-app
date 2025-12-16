@@ -2,10 +2,10 @@
 pyyaml
 pydantic==2.12.5
 python-dotenv
+redis # Para comunicação com a fila de tarefas
 pypdf # Para extração de PDF
 google-generativeai # Para o Analysis Agent
 fastapi
 uvicorn
-faiss-cpu
 sentence-transformers
 chromadb

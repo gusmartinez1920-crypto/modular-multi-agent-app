@@ -7,11 +7,10 @@ services:
       dockerfile: Dockerfile.backend
     env_file: .env
     volumes:
-      - ./data:/app/data  # Compartilha dados, PDFs e vector_store
-      # - ./logs:/app/logs # Opcional: para persistir logs
-    # Comando de inicialização, que pode ser o próprio main.py
+      - ./data:/app/data
     command: python main.py
-    # Não expõe porta, pois se comunica internamente com o API Gateway ou fila de mensagens
+    depends_on:
+      - message-broker
     restart: unless-stopped
 
   # 2. API GATEWAY (Ponte entre Web e Agentes)
@@ -21,14 +20,13 @@ services:
       context: ./server
       dockerfile: ../Dockerfile.server
     ports:
-      - "8000:8000" # Porta para comunicação externa (Frontend)
+      - "8000:8000"
     env_file: .env
     volumes:
-      - ./data:/app/data # Acesso ao volume de dados para manipular PDFs de upload
+      - ./data:/app/data
     depends_on:
-      - agent-backend # Garante que o motor de IA suba primeiro
+      - message-broker
     restart: unless-stopped
-    # Comando de inicialização do servidor Uvicorn/FastAPI
     command: uvicorn main:app --host 0.0.0.0 --port 8000
 
   # 3. FRONTEND WEB (Interface de Usuário)
@@ -38,10 +36,17 @@ services:
       context: ./frontend
       dockerfile: ../Dockerfile.frontend
     ports:
-      - "3000:3000" # Porta para o navegador (acesso via http://localhost:3000)
-    # Define a URL da API para que o Next.js/React saiba onde enviar as solicitações
+      - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://api-gateway:8000 
+      - NEXT_PUBLIC_API_URL=http://api-gateway:8000
     depends_on:
       - api-gateway
+    restart: unless-stopped
+
+  # 4. MESSAGE BROKER (Fila de Tarefas)
+  message-broker:
+    container_name: message_broker
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
     restart: unless-stopped

@@ -1,20 +1,23 @@
 # Arquivo: agents/delivery_agent.py
 import logging
 import json
+import os
 from typing import Dict, Any, Union
 
 logger = logging.getLogger('DeliveryAgent')
+
+# Diretório para salvar os relatórios finais, acessível pelo API Gateway
+OUTPUT_DIR = "/app/data/output_reports"
 
 class DeliveryAgent:
     """
     Agente de Entrega e Formatação de Saída.
     Responsável por receber a resposta final do AnalysisAgent e formatá-la 
-    no padrão de entrega (JSON/Markdown) para o sistema externo (API).
+    no padrão de entrega, salvando o resultado para a API.
     """
 
     def __init__(self):
-        # O DeliveryAgent geralmente não precisa de ferramentas externas complexas
-        pass
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     def execute(self, input_data: Dict[str, Any], user_request: str, command: str, task_id: str) -> Dict[str, Union[str, Dict[str, Any]]]:
         """
@@ -22,36 +25,35 @@ class DeliveryAgent:
         """
         extra_data = {'task_id': task_id}
         
-        # O resultado da análise é o output_data da etapa anterior (AnalysisAgent)
         analysis_result = input_data.get('output_data', "Resultado não encontrado.")
         
         if command == "format_final_report":
             
-            logger.info("Iniciando formatação do relatório final.", extra=extra_data)
-            
-            # --- Lógica de Formatação ---
-            
-            # Aqui, idealmente, você usaria Pydantic ou JSON Schema para formatar a saída.
+            logger.info("Iniciando formatação e salvamento do relatório final.", extra=extra_data)
             
             final_json_report = {
                 "task_id": task_id,
                 "user_query": user_request,
-                "timestamp": logging.Formatter('%Y-%m-%d %H:%M:%S').formatTime(logging.LogRecord(None, None, None, None, None, None)),
                 "status": "COMPLETED",
-                "result_type": "markdown",
                 "report_content": analysis_result
             }
             
-            final_json_string = json.dumps(final_json_report, indent=2)
+            output_file_path = os.path.join(OUTPUT_DIR, f"{task_id}.json")
             
-            logger.info("Relatório final formatado em JSON. Tamanho: %d caracteres.", len(final_json_string), extra=extra_data)
-            
-            # Retorna o resultado final, formatado e pronto para o sistema externo
-            return {
-                "status": "success",
-                "output_data": final_json_report,
-                "message": "Final report formatted and ready for API delivery."
-            }
+            try:
+                with open(output_file_path, "w") as f:
+                    json.dump(final_json_report, f, indent=2)
+                
+                logger.info(f"Relatório final da tarefa {task_id} salvo em {output_file_path}.", extra=extra_data)
+
+                return {
+                    "status": "success",
+                    "output_data": final_json_report,
+                    "message": f"Final report saved to {output_file_path}."
+                }
+            except Exception as e:
+                logger.error(f"Falha ao salvar o relatório final para a tarefa {task_id}: {e}", extra=extra_data)
+                return {"status": "error", "message": f"Failed to save report: {e}"}
 
         else:
             logger.warning("Comando desconhecido: %s", command, extra=extra_data)

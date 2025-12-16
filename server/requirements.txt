@@ -2,5 +2,5 @@
 fastapi
 uvicorn[standard]
 python-dotenv
-# Se usar um Message Broker (ex: Redis/Celery), adicione aqui
+redis # Para comunicação com o Message Broker
 chromadb

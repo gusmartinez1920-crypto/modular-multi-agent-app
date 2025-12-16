@@ -19,7 +19,6 @@ RUN apt-get update && \
 # Copia e instala as dependências definidas no package.json
 COPY package*.json ./
 RUN npm install
-RUN npm cache clean --force
 
 
 # 4. Construção da Aplicação

@@ -4,13 +4,16 @@ import yaml
 import os
 import time
 import json
+import redis
 from dotenv import load_dotenv
 
 # Importa a função principal do Coordenador
-from agents.coordinator_agent import process_task_from_api 
+from agents.coordinator_agent import process_task_from_api
 
 # --- CONFIGURAÇÃO ---
-QUEUE_DIR = 'data/queue'
+REDIS_HOST = os.getenv("REDIS_HOST", "message-broker")
+REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+TASK_QUEUE_NAME = "task_queue"
 
 # 1. Função de Inicialização de Logs
 def initialize_logging(config_path='logging_config.yaml'):
@@ -31,54 +34,52 @@ def initialize_logging(config_path='logging_config.yaml'):
 
 # 2. Inicialização do Motor do Backend
 def start_agent_backend():
-    # Carregar variáveis de ambiente
     load_dotenv()
-    
-    # Inicializar o sistema de logging
     initialize_logging()
     
-    # Garantir que o diretório da fila exista
-    os.makedirs(QUEUE_DIR, exist_ok=True)
-    
     root_logger = logging.getLogger()
-    root_logger.info("Sistema de Multiagentes Inicializado com Sucesso.")
-    root_logger.info("Aguardando tarefas no diretório: %s", QUEUE_DIR)
+    root_logger.info("Sistema de Multiagentes Inicializado.")
 
-    print(f"\n--- Modo de Escuta Ativado em '{QUEUE_DIR}' (Ctrl+C para sair) ---")
+    # Conexão com Redis
+    try:
+        redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0)
+        redis_client.ping()
+        root_logger.info(f"Conectado ao Redis em {REDIS_HOST}:{REDIS_PORT}")
+    except redis.exceptions.ConnectionError as e:
+        root_logger.error(f"Não foi possível conectar ao Redis. O sistema será encerrado: {e}", exc_info=True)
+        return
+
+    print(f"\n--- Modo de Escuta Ativado na fila '{TASK_QUEUE_NAME}' (Ctrl+C para sair) ---")
     
     try:
         while True:
-            # Lista os arquivos de tarefa no diretório da fila
-            tasks = [f for f in os.listdir(QUEUE_DIR) if f.endswith('.json')]
+            # Espera bloqueante por uma nova tarefa na fila
+            # BRPOP retorna uma tupla (nome_da_fila, item) ou None se o timeout for atingido
+            task_item = redis_client.brpop(TASK_QUEUE_NAME)
             
-            if not tasks:
-                time.sleep(2) # Espera se não houver tarefas
+            if not task_item:
                 continue
 
-            for task_file in tasks:
-                file_path = os.path.join(QUEUE_DIR, task_file)
-                
-                try:
-                    with open(file_path, 'r') as f:
-                        payload = json.load(f)
-                    
-                    root_logger.info("Nova tarefa recebida: %s", payload.get("task_id", "ID não encontrado"))
-                    
-                    # Executa o processo multiagentes
-                    result = process_task_from_api(payload)
-                    
-                    # Reporta o resultado
-                    root_logger.info("Resultado da Tarefa %s: Status: %s", 
-                                     payload.get('task_id', 'N/A'), result.get('status', 'desconhecido'))
+            # O item é retornado como bytes, então decodificamos e carregamos o JSON
+            task_payload_str = task_item[1].decode('utf-8')
+            payload = json.loads(task_payload_str)
+            
+            task_id = payload.get("task_id", "ID não encontrado")
+            root_logger.info(f"Nova tarefa recebida da fila: {task_id}")
 
-                except json.JSONDecodeError as e:
-                    root_logger.error("Erro ao decodificar JSON da tarefa %s: %s", task_file, e)
-                except Exception as e:
-                    root_logger.error("Erro ao processar a tarefa %s: %s", task_file, e)
-                finally:
-                    # Remove o arquivo da tarefa após o processamento (bem-sucedido ou falho)
-                    os.remove(file_path)
-                    root_logger.info("Tarefa %s removida da fila.", task_file)
+            try:
+                # Executa o processo multiagentes
+                result = process_task_from_api(payload)
+                
+                # Reporta o resultado
+                root_logger.info("Resultado da Tarefa %s: Status: %s", 
+                                 task_id, result.get('status', 'desconhecido'))
+
+            except Exception as e:
+                root_logger.error("Erro ao processar a tarefa %s: %s", task_id, e, exc_info=True)
+                # Opcional: mover para uma fila de "falhas" em vez de descartar
+                # redis_client.lpush("failed_queue", task_payload_str)
+
 
     except KeyboardInterrupt:
         root_logger.warning("Motor de Agentes Desligado pelo Usuário.")
