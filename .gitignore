@@ -16,5 +16,4 @@ frontend/.next/
 .DS_Store
 
 # Dados gerados pelo Docker
-data/vector_store/
-data/logs/
+/data/

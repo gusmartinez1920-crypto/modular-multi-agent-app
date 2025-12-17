@@ -4,3 +4,4 @@ uvicorn[standard]
 python-dotenv
 redis # Para comunicação com o Message Broker
 chromadb
+python-multipart # Necessário para o FastAPI processar uploads de arquivos/formulários
