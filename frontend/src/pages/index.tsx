@@ -6,7 +6,7 @@ import Head from 'next/head';
 // No Docker, o frontend acessa a API pelo nome do serviço: 'api-gateway'
 // Se estiver rodando localmente (sem Docker), use 'localhost:8000'
 // No Docker:
-const API_URL = 'http://localhost:8000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 // Para testes locais sem Docker, você usaria: 'http://localhost:8000'
 
 // Interface para o objeto de resposta

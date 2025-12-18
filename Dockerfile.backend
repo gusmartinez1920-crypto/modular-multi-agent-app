@@ -1,26 +1,33 @@
-# Arquivo: Dockerfile.backend
+# --- Estágio Base ---
+# Imagem Python leve para manter o tamanho final reduzido
 FROM python:3.11-slim
 
-# PASSO CRÍTICO: Instalar ferramentas de build do sistema (gcc, headers)
-# Isso permite que pacotes Python com código C/C++ sejam compilados corretamente.
+# --- Instalação de Dependências do Sistema ---
+# Instala o Git, que pode ser necessário para algumas dependências Python
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    gcc \
-    python3-dev \
-    # Adicione libpq-dev se você usar PostgreSQL
-    # Adicione libssl-dev se usar pacotes de rede/ssl
-    libffi-dev \
+    git \
+    build-essential \
     && \
+    # Limpa o cache para reduzir o tamanho da imagem
     rm -rf /var/lib/apt/lists/*
 
+# --- Configuração do Ambiente ---
+# Define o diretório de trabalho principal da aplicação
 WORKDIR /app
 
-# Instala dependências do Python
+# --- Instalação de Dependências Python ---
+# Copia o arquivo de requisitos e instala as bibliotecas
 COPY requirements.txt .
+# O --no-cache-dir garante que não haverá cache de pacotes, 
+# ajudando a manter a imagem leve
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia todo o código da raiz (inclui agents/, tools/, workflows/, etc.)
+# --- Cópia do Código da Aplicação ---
+# Copia todo o código da aplicação para o diretório de trabalho
 COPY . .
 
-# Comando de inicialização
-CMD ["python", "main.py"]
+# --- Comando de Execução ---
+# O comando padrão para iniciar o container, que pode ser sobrescrito 
+# no docker-compose.yml
+# CMD ["python", "main.py"]

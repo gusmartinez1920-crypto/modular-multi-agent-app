@@ -1,0 +1,30 @@
+# Docker
+Dockerfile*
+docker-compose.yml
+
+# Python
+*.pyc
+__pycache__/
+venv/
+.venv/
+env/
+.env
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# IDE/Editor
+.vscode/
+.idea/
+
+# Dados e Logs
+data/input_pdfs/*
+data/output_reports/*
+data/vector_store/*
+data/logs/*.log
+!data/logs/.gitkeep
+!data/input_pdfs/.gitkeep
+!data/output_reports/.gitkeep
+!data/vector_store/.gitkeep
